@@ -313,10 +313,27 @@ type resizeVhdArgs struct {
 
 var resizeVhdTemplate = template.Must(template.New("ResizeVhd").Parse(`
 $ErrorActionPreference = 'Stop'
-$vhd = Get-VHD -Path '{{.Path}}'
-if ($vhd.Size -ne {{.Size}}){
-	Resize-VHD -Path '{{.Path}}' -SizeBytes {{.Size}}
-}
+$attempts=1
+$maxAttempts=5
+do {
+	try {
+		$vhd = Get-VHD -Path '{{.Path}}'
+		if ($vhd.Size -ne {{.Size}}) {
+			Resize-VHD -Path '{{.Path}}' -SizeBytes {{.Size}}
+		}
+		break
+	} catch [Microsoft.HyperV.PowerShell.VirtualizationException] {
+		$_ | Format-List | Write-Host
+	}
+	$attempts++
+	if ($attempts -le $maxAttempts) {
+		$retryDelaySeconds = [math]::Pow(2, $attempts)
+		$retryDelaySeconds = $retryDelaySeconds - 1 # Exponential Backoff Max == (2^n)-1
+
+		Write-Host("Get-VHD failed. Waiting " + $retryDelaySeconds + " seconds before attempt " + $attempts + " of " + $maxAttempts + ".")
+		Start-Sleep $retryDelaySeconds
+	}
+} while ($attempts -le $maxAttempts)
 `))
 
 func (c *ClientConfig) ResizeVhd(ctx context.Context, path string, size uint64) (err error) {
