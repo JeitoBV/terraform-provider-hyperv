@@ -51,10 +51,28 @@ var elevatedCommandTemplate = template.Must(template.New("ElevatedCommand").Func
   $username = '{{escapeSingleQuotes .User}}'.Replace('\.\\', $env:computername+'\');
   $password = '{{escapeSingleQuotes .Password}}';
   $credential = New-Object System.Management.Automation.PsCredential($username, (ConvertTo-SecureString $password -AsPlainText -Force))
+
+  $pinfo = New-Object System.Diagnostics.ProcessStartInfo
+$pinfo.FileName = "powershell"
+$pinfo.Verb = "runas"
+$pinfo.RedirectStandardError = $true
+$pinfo.RedirectStandardOutput = $true
+$pinfo.UseShellExecute = $false
+$pinfo.Arguments = "-NoProfile -ExecutionPolicy Bypass -File {{.ScriptPath}}"
+$p = New-Object System.Diagnostics.Process
+$p.StartInfo = $pinfo
+$p.Start() | Out-Null
+$p.WaitForExit()
+$stdout = $p.StandardOutput.ReadToEnd()
+$stderr = $p.StandardError.ReadToEnd()
+Write-Host "$stdout"
+Write-Host "$stderr"
+#Write-Host "exit code: " + $p.ExitCode
+
   # Start-Process -FilePath "powershell" -Verb RunAs -Wait -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File {{.ScriptPath}}" 
 
-  $bla = Invoke-Expression -Command "{{.ScriptPath}}"
-  Write-Host $bla
+  #$bla = Invoke-Expression -Command "{{.ScriptPath}}"
+  #Write-Host $bla
   # Start-Process -Verb RunAs -Wait -NoNewWindow -FilePath "powershell" -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File {{.ScriptPath}}"
   # Start-Process -Credential $credential -Wait -NoNewWindow -FilePath "powershell" -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File {{.ScriptPath}}"
 `))
