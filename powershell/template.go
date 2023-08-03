@@ -51,8 +51,7 @@ var elevatedCommandTemplate = template.Must(template.New("ElevatedCommand").Func
   $username = '{{escapeSingleQuotes .User}}'.Replace('\.\\', $env:computername+'\');
   $password = '{{escapeSingleQuotes .Password}}';
   $credential = New-Object System.Management.Automation.PsCredential($username, (ConvertTo-SecureString $password -AsPlainText -Force))
-  powershell -NoProfile -Credential $credential -NoNewWindow -ExecutionPolicy Bypass "{{escapeDoubleQuotes .Powershell}}"
-  # powershell -NoProfile -ExecutionPolicy Bypass "{{escapeDoubleQuotes .Powershell}}"
+  powershell -NoProfile -Credential $credential -NoNewWindow -ExecutionPolicy Bypass -File "{{escapeSingleQuotes .ScriptPath}}"
 `))
 
 // var elevatedCommandTemplate = template.Must(template.New("ElevatedCommand").Funcs(template.FuncMap{
