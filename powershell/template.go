@@ -58,7 +58,7 @@ $pinfo.Verb = "runas"
 $pinfo.RedirectStandardError = $true
 $pinfo.RedirectStandardOutput = $true
 $pinfo.UseShellExecute = $false
-$pinfo.Arguments = "-NoProfile -ExecutionPolicy Bypass -File {{.ScriptPath}}"
+$pinfo.Arguments = "-ExecutionPolicy Bypass -File {{.ScriptPath}}"
 $p = New-Object System.Diagnostics.Process
 $p.StartInfo = $pinfo
 $p.Start() | Out-Null
