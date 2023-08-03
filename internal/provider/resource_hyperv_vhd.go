@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"os"
+//	"os"
 	"path"
 	"strings"
 	"time"
@@ -192,25 +192,38 @@ func resourceHyperVVhd() *schema.Resource {
 			},
 		},
 
-		CustomizeDiff: customizeDiffForVhd,
+		//CustomizeDiff: customizeDiffForVhd,
 	}
 }
 
 func customizeDiffForVhd(ctx context.Context, diff *schema.ResourceDiff, i interface{}) error {
 	path := diff.Get("path").(string)
 
-	if _, err := os.Stat(path); err != nil {
-		if os.IsNotExist(err) {
-			// file does not exist
-			diff.SetNew("exists", false)
-			return nil
-		} else {
-			// other error
-			return err
-		}
-	}
+	log.Printf("[INFO][hyperv][customizeDiff] checking for existing hyperv vhd: %#v", path)
+	c := i.(api.Client)
+  existing, err := c.VhdExists(ctx, path)
+  if err != nil {
+    return err
+  } else {
+	  log.Printf("[INFO][hyperv][customizeDiff] checking for existing hyperv vhd: %#v exists: %#v", path, existing.Exists)
+    diff.SetNew("exists", existing.Exists)
+    return nil
+  }
 
-	return nil
+  return nil
+
+//  if _, err := os.Stat(path); err != nil {
+//		if os.IsNotExist(err) {
+//			// file does not exist
+//			diff.SetNew("exists", false)
+//			return nil
+//		} else {
+//			// other error
+//			return err
+//		}
+//	}
+
+//	return nil
 }
 
 func resourceHyperVVhdCreate(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {

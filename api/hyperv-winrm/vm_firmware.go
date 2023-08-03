@@ -21,7 +21,7 @@ $vmFirmware = '{{.VmFirmwareJson}}' | ConvertFrom-Json
 $bootOrders = @($vmFirmware.BootOrders | %{
 	$bootOrder = $_
 	if ($bootOrder.Type -eq 'NetworkAdapter') {
-		$networkAdapter = Get-VM -Name "$($vmFirmware.VmName)*" | ?{$_.Name -eq $vmFirmware.VmName } | Get-VMNetworkAdapter
+		$networkAdapter = Get-ClusterGroup | ? {$_.GroupType -eq 'VirtualMachine' -and $_.Name -eq $vmFirmware.VmName } | Get-VM | Get-VMNetworkAdapter
 		if ($bootOrder.NetworkAdapterName) {
 			$networkAdapter = $networkAdapter | ?{$_.Name -eq $bootOrder.NetworkAdapterName}
 		}
@@ -36,7 +36,7 @@ $bootOrders = @($vmFirmware.BootOrders | %{
 
 		$networkAdapter
 	} elseif ($bootOrder.Type -eq 'HardDiskDrive') {
-		$hardDiskDrive = Get-VM -Name "$($vmFirmware.VmName)*" | ?{$_.Name -eq $vmFirmware.VmName } | Get-VMHardDiskDrive
+		$hardDiskDrive = Get-ClusterGroup | ? {$_.GroupType -eq 'VirtualMachine' -and $_.Name -eq $vmFirmware.VmName } | Get-VM | Get-VMHardDiskDrive
 
 		if ($bootOrder.Path) {
 			$hardDiskDrive = $hardDiskDrive | ?{$_.Path -ieq $bootOrder.Path}
@@ -53,7 +53,7 @@ $bootOrders = @($vmFirmware.BootOrders | %{
 		$hardDiskDrive
 
 	} elseif ($bootOrder.Type -eq 'DvdDrive') {
-		$dvdDrive = Get-VM -Name "$($vmFirmware.VmName)*" | ?{$_.Name -eq $vmFirmware.VmName } | Get-VMDvdDrive
+		$dvdDrive = Get-ClusterGroup | ? {$_.GroupType -eq 'VirtualMachine' -and $_.Name -eq $vmFirmware.VmName } | Get-VM | Get-VMDvdDrive
 
 		if ($bootOrder.Path) {
 			$dvdDrive = $dvdDrive | ?{$_.Path -ieq $bootOrder.Path}
@@ -121,7 +121,7 @@ type getVmFirmwareArgs struct {
 var getVmFirmwareTemplate = template.Must(template.New("GetVmFirmware").Parse(`
 $ErrorActionPreference = 'Stop'
 
-$vmFirmwareObject = Get-VM -Name '{{.VmName}}*' | ?{$_.Name -eq '{{.VmName}}' } | Get-VMFirmware | %{ @{
+$vmFirmwareObject = Get-ClusterGroup | ? {$_.GroupType -eq 'VirtualMachine' -and $_.Name -eq '{{.VmName}}' } | Get-VM | Get-VMFirmware | %{ @{
 	BootOrders= @($_.BootOrder | %{
 		if ($_.BootType -eq 'Network') {
 			@{Type='NetworkAdapter';NetworkAdapterName=$_.Device.Name;SwitchName=$_.Device.SwitchName;MacAddress=$_.Device.MacAddress;Path='';ControllerNumber=-1;ControllerLocation=-1;}

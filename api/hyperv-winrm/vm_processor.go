@@ -87,7 +87,7 @@ type getVmProcessorArgs struct {
 var getVmProcessorTemplate = template.Must(template.New("GetVmProcessor").Parse(`
 $ErrorActionPreference = 'Stop'
 
-$vmProcessorObject = Get-VM -Name '{{.VmName}}*' | ?{$_.Name -eq '{{.VmName}}' } | Get-VMProcessor | %{ @{
+$vmProcessorObject = Get-ClusterGroup | ? {$_.GroupType -eq 'VirtualMachine' -and $_.Name -eq '{{.VmName}}' } | Get-VM | Get-VMProcessor | %{ @{
 	CompatibilityForMigrationEnabled=$_.CompatibilityForMigrationEnabled
 	CompatibilityForOlderOperatingSystemsEnabled=$_.CompatibilityForOlderOperatingSystemsEnabled
 	HwThreadCountPerCore=$_.HwThreadCountPerCore

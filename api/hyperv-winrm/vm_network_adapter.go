@@ -27,8 +27,14 @@ $deviceNaming = [Microsoft.HyperV.PowerShell.OnOffState]$vmNetworkAdapter.Device
 $fixSpeed10G = [Microsoft.HyperV.PowerShell.OnOffState]$vmNetworkAdapter.FixSpeed10G
 $macAddressSpoofing = [Microsoft.HyperV.PowerShell.OnOffState]$vmNetworkAdapter.MacAddressSpoofing
 
+$computerName = (Get-ClusterGroup | ? {$_.GroupType -eq 'VirtualMachine' -and $_.Name -eq $vmNetworkAdapter.VmName }).OwnerNode
+if ([string]::IsNullOrWhiteSpace($computerName)) {
+  $computername = $env:COMPUTERNAME
+}
+
 $NewVmNetworkAdapterArgs = @{
 	VmName=$vmNetworkAdapter.VmName
+  ComputerName=$computerName
 	Name=$vmNetworkAdapter.Name
 	IsLegacy=$vmNetworkAdapter.IsLegacy
 	SwitchName=$vmNetworkAdapter.SwitchName
@@ -39,7 +45,7 @@ Add-VmNetworkAdapter @NewVmNetworkAdapterArgs
 $minimumBandwidthMode = [Microsoft.HyperV.PowerShell.VMSwitchBandwidthMode]::None
 
 if ($vmNetworkAdapter.SwitchName) {
-	$vmSwitch = Get-VMSwitch -Name $vmNetworkAdapter.SwitchName
+	$vmSwitch = Get-VMSwitch -ComputerName $computerName -Name $vmNetworkAdapter.SwitchName
 	if ($vmSwitch) {
 		$minimumBandwidthMode = $vmSwitch.BandwidthReservationMode
 	}
@@ -48,6 +54,7 @@ if ($vmNetworkAdapter.SwitchName) {
 $SetVmNetworkAdapterArgs = @{}
 $SetVmNetworkAdapterArgs.VmName=$vmNetworkAdapter.VmName
 $SetVmNetworkAdapterArgs.Name=$vmNetworkAdapter.Name
+$SetVmNetworkAdapterArgs.ComputerName=$computerName
 if ($vmNetworkAdapter.DynamicMacAddress) {
 	$SetVmNetworkAdapterArgs.DynamicMacAddress=$vmNetworkAdapter.DynamicMacAddress
 } elseif ($vmNetworkAdapter.StaticMacAddress) {
@@ -96,6 +103,7 @@ if ($vmNetworkAdapter.VlanAccess -and $vmNetworkAdapter.VlanId) {
 	$SetVmNetworkAdapterVlanArgs = @{}
 
 	$SetVmNetworkAdapterVlanArgs.VMName  = $vmNetworkAdapter.VmName
+	$SetVmNetworkAdapterVlanArgs.ComputerName  = $computerName
 	$SetVmNetworkAdapterVlanArgs.VMNetworkAdapterName   = $vmNetworkAdapter.Name
 	$SetVmNetworkAdapterVlanArgs.Access = $true
 	$SetVmNetworkAdapterVlanArgs.VlanId = $vmNetworkAdapter.VlanId
@@ -207,11 +215,15 @@ type getVmNetworkAdaptersArgs struct {
 var getVmNetworkAdaptersTemplate = template.Must(template.New("GetVmNetworkAdapters").Parse(`
 $ErrorActionPreference = 'Stop'
 #First 3 requests fails to get ip address
-Get-VMNetworkAdapter -VmName '{{.VmName}}' | Out-Null
-Get-VMNetworkAdapter -VmName '{{.VmName}}' | Out-Null
-Get-VMNetworkAdapter -VmName '{{.VmName}}' | Out-Null
+#Get-VMNetworkAdapter -VmName '{{.VmName}}' | Out-Null
+#Get-VMNetworkAdapter -VmName '{{.VmName}}' | Out-Null
+#Get-VMNetworkAdapter -VmName '{{.VmName}}' | Out-Null
 
-$vmNetworkAdaptersObject = @(Get-VM -Name '{{.VmName}}*' | ?{$_.Name -eq '{{.VmName}}' } | Get-VMNetworkAdapter | %{ @{
+Get-ClusterGroup | ? {$_.GroupType -eq 'VirtualMachine' -and $_.Name -eq '{{.VmName}}' } | Get-VM | Get-VMNetworkAdapter | Out-Null
+Get-ClusterGroup | ? {$_.GroupType -eq 'VirtualMachine' -and $_.Name -eq '{{.VmName}}' } | Get-VM | Get-VMNetworkAdapter | Out-Null
+Get-ClusterGroup | ? {$_.GroupType -eq 'VirtualMachine' -and $_.Name -eq '{{.VmName}}' } | Get-VM | Get-VMNetworkAdapter | Out-Null
+
+$vmNetworkAdaptersObject = @(Get-ClusterGroup | ? {$_.GroupType -eq 'VirtualMachine' -and $_.Name -eq '{{.VmName}}' } | Get-VM | Get-VMNetworkAdapter | %{ @{
      Name=$_.Name;
      SwitchName=$_.SwitchName;
      ManagementOs=$_.IsManagementOs;
@@ -340,7 +352,7 @@ function Test-IsNotInFinalTransitionState($State){
 function Wait-ForNetworkAdapterIps($Name, $Timeout, $PollPeriod, $VmNetworkAdaptersToWaitForIps){
 	$timer = [Diagnostics.Stopwatch]::StartNew()
 	while ($timer.Elapsed.TotalSeconds -lt $Timeout) {
-        $vmObject = Get-VM -Name "$($vmName)*" | ?{$_.Name -eq $vmName}
+        $vmObject = Get-ClusterGroup | ? {$_.GroupType -eq 'VirtualMachine' -and $_.Name -eq $vmName } | Get-VM
 
         if (!(Test-IsNotInFinalTransitionState $vmObject.state)){
             if (Test-CanGetIpsForState $vmObject.state) {
@@ -375,12 +387,13 @@ function Wait-ForNetworkAdapterIps($Name, $Timeout, $PollPeriod, $VmNetworkAdapt
 Import-Module Hyper-V
 $vmNetworkAdaptersToWaitForIps = '{{.VmNetworkAdaptersWaitForIpsJson}}' | ConvertFrom-Json
 $vmName = '{{.VmName}}'
-$vmObject = Get-VM -Name "$($vmName)*" | ?{$_.Name -eq $vmName}
+# $vmObject = Get-VM -Name "$($vmName)*" | ?{$_.Name -eq $vmName}
+$vmObject = Get-ClusterGroup | ? {$_.GroupType -eq 'VirtualMachine' -and $_.Name -eq $vmName } | Get-VM
 $timeout = {{.Timeout}}
 $pollPeriod = {{.PollPeriod}}
 
 if (!$vmObject){
-	throw "VM does not exist - $($vmName)"
+	throw "VM does not exist (waitforips) - $($vmName)"
 }
 
 Wait-ForNetworkAdapterIps -Name $vmName -Timeout $timeout -PollPeriod $pollPeriod -VmNetworkAdaptersToWaitForIps $vmNetworkAdaptersToWaitForIps
@@ -419,9 +432,12 @@ type updateVmNetworkAdapterArgs struct {
 var updateVmNetworkAdapterTemplate = template.Must(template.New("UpdateVmNetworkAdapter").Parse(`
 $ErrorActionPreference = 'Stop'
 #First 3 requests fails to get ip address
-Get-VMNetworkAdapter -VmName '{{.VmName}}' | Out-Null
-Get-VMNetworkAdapter -VmName '{{.VmName}}' | Out-Null
-Get-VMNetworkAdapter -VmName '{{.VmName}}' | Out-Null
+#Get-VMNetworkAdapter -VmName '{{.VmName}}' | Out-Null
+#Get-VMNetworkAdapter -VmName '{{.VmName}}' | Out-Null
+#Get-VMNetworkAdapter -VmName '{{.VmName}}' | Out-Null
+Get-ClusterGroup | ? {$_.GroupType -eq 'VirtualMachine' -and $_.Name -eq '{{.VmName}}' } | Get-VM | Get-VMNetworkAdapter | Out-Null
+Get-ClusterGroup | ? {$_.GroupType -eq 'VirtualMachine' -and $_.Name -eq '{{.VmName}}' } | Get-VM | Get-VMNetworkAdapter | Out-Null
+Get-ClusterGroup | ? {$_.GroupType -eq 'VirtualMachine' -and $_.Name -eq '{{.VmName}}' } | Get-VM | Get-VMNetworkAdapter | Out-Null
 
 $vmNetworkAdapter = '{{.VmNetworkAdapterJson}}' | ConvertFrom-Json
 
@@ -435,14 +451,18 @@ $deviceNaming = [Microsoft.HyperV.PowerShell.OnOffState]$vmNetworkAdapter.Device
 $fixSpeed10G = [Microsoft.HyperV.PowerShell.OnOffState]$vmNetworkAdapter.FixSpeed10G
 $macAddressSpoofing = [Microsoft.HyperV.PowerShell.OnOffState]$vmNetworkAdapter.MacAddressSpoofing
 
-$vmNetworkAdaptersObject = @(Get-VM -Name '{{.VmName}}*' | ?{$_.Name -eq '{{.VmName}}' } | Get-VMNetworkAdapter)[{{.Index}}]
+$computerName = (Get-ClusterGroup | ? {$_.GroupType -eq 'VirtualMachine' -and $_.Name -eq '{{.VmName}}' }).OwnerNode
+if ([string]::IsNullOrWhiteSpace($computerName)) {
+  $computerName = $env:COMPUTERNAME
+}
+$vmNetworkAdaptersObject = @(Get-VM -ComputerName $computerName -Name "{{.VmName}}" | Get-VMNetworkAdapter)[{{.Index}}]
 
 if (!$vmNetworkAdaptersObject){
 	throw "VM network adapter does not exist - {{.Index}}"
 }
 
 if ($vmNetworkAdapter.SwitchName) {
-	$vmSwitch = Get-VMSwitch -Name $vmNetworkAdapter.SwitchName
+	$vmSwitch = Get-VMSwitch -ComputerName $computerName -Name $vmNetworkAdapter.SwitchName
 	if ($vmSwitch) {
 		$minimumBandwidthMode = $vmSwitch.BandwidthReservationMode
 	}
@@ -450,9 +470,9 @@ if ($vmNetworkAdapter.SwitchName) {
 
 if ($vmNetworkAdaptersObject.SwitchName -ne $vmNetworkAdapter.SwitchName) {
 	if ($vmNetworkAdapter.SwitchName) {
-		$null = $vmNetworkAdaptersObject | Connect-VMNetworkAdapter -SwitchName $vmNetworkAdapter.SwitchName
+		$null = $vmNetworkAdaptersObject | Connect-VMNetworkAdapter -ComputerName $computerName -SwitchName $vmNetworkAdapter.SwitchName
 	} else {
-		$null = $vmNetworkAdaptersObject | Disconnect-VMNetworkAdapter
+		$null = $vmNetworkAdaptersObject | Disconnect-VMNetworkAdapter -ComputerName $computerName
 	}
 }
 
@@ -463,6 +483,7 @@ if ($vmNetworkAdaptersObject.Name -ne $vmNetworkAdapter.Name) {
 $SetVmNetworkAdapterArgs = @{}
 $SetVmNetworkAdapterArgs.VmName=$vmNetworkAdapter.VmName
 $SetVmNetworkAdapterArgs.Name=$vmNetworkAdapter.Name
+$SetVmNetworkAdapterArgs.ComputerName=$computerName
 if ($vmNetworkAdapter.DynamicMacAddress) {
 	$SetVmNetworkAdapterArgs.DynamicMacAddress=$vmNetworkAdapter.DynamicMacAddress
 } elseif ($vmNetworkAdapter.StaticMacAddress) {
@@ -491,7 +512,7 @@ if ($vmNetworkAdaptersObject.ResourcePoolName -ne $vmNetworkAdapter.ResourcePool
 	if ($vmNetworkAdapter.ResourcePoolName) {
 		$SetVmNetworkAdapterArgs.ResourcePoolName=$vmNetworkAdapter.ResourcePoolName
 	} else {
-		$null = $vmNetworkAdaptersObject | Disconnect-VMNetworkAdapter
+		$null = $vmNetworkAdaptersObject | Disconnect-VMNetworkAdapter -ComputerName $computerName
 	}
 }
 
@@ -517,6 +538,7 @@ if ($vmNetworkAdapter.VlanAccess -and $vmNetworkAdapter.VlanId) {
 	$SetVmNetworkAdapterVlanArgs = @{}
 
 	$SetVmNetworkAdapterVlanArgs.VMName = $vmNetworkAdapter.VmName
+	$SetVmNetworkAdapterVlanArgs.ComputerName = $computerName
 	$SetVmNetworkAdapterVlanArgs.VMNetworkAdapterName = $vmNetworkAdapter.Name
 	$SetVmNetworkAdapterVlanArgs.Access = $true
 	$SetVmNetworkAdapterVlanArgs.VlanId = $vmNetworkAdapter.VlanId
@@ -633,7 +655,7 @@ type deleteVmNetworkAdapterArgs struct {
 var deleteVmNetworkAdapterTemplate = template.Must(template.New("DeleteVmNetworkAdapter").Parse(`
 $ErrorActionPreference = 'Stop'
 
-@(Get-VM -Name '{{.VmName}}*' | ?{$_.Name -eq '{{.VmName}}' } | Get-VMNetworkAdapter)[{{.Index}}] | Remove-VMNetworkAdapter
+@(Get-ClusterGroup | ? {$_.GroupType -eq 'VirtualMachine' -and $_.Name -eq '{{.VmName}}' } | Get-VM | Get-VMNetworkAdapter)[{{.Index}}] | Remove-VMNetworkAdapter
 `))
 
 func (c *ClientConfig) DeleteVmNetworkAdapter(ctx context.Context, vmName string, index int) (err error) {

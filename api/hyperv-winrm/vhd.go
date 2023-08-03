@@ -355,7 +355,11 @@ $path='{{.Path}}'
 
 $vhdObject = $null
 if (Test-Path $path) {
-	$vhdObject = Get-VHD -path $path | %{ @{
+  $computerName = (Get-ClusterGroup | ? {$_.GroupType -eq 'VirtualMachine' } |Get-VM|Get-VMHardDiskDrive|Where-Object Path -eq $path).ComputerName
+  if ([string]::IsNullOrWhiteSpace($computerName)) {
+    $computerName = $env:COMPUTERNAME
+  }
+	$vhdObject = Get-VHD -path $path -ComputerName $computerName | %{ @{
 		Path=$_.Path;
 		BlockSize=$_.BlockSize;
 		LogicalSectorSize=$_.LogicalSectorSize;

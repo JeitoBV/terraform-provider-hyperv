@@ -14,7 +14,8 @@ type existsVmArgs struct {
 
 var existsVmTemplate = template.Must(template.New("ExistsVm").Parse(`
 $ErrorActionPreference = 'Stop'
-$vmObject = Get-VM -Name '{{.Name}}*' | ?{$_.Name -eq '{{.Name}}' }
+# $vmObject = Get-VM -Name '{{.Name}}*' | ?{$_.Name -eq '{{.Name}}' }
+$vmObject = Get-ClusterGroup | ? {$_.GroupType -eq 'VirtualMachine' -and $_.Name -eq '{{.Name}}' } | Get-VM
 
 if ($vmObject){
 	$exists = ConvertTo-Json -InputObject @{Exists=$true}
@@ -48,7 +49,8 @@ $checkpointType = [Microsoft.HyperV.PowerShell.CheckpointType]$vm.CheckpointType
 $lockOnDisconnect = [Microsoft.HyperV.PowerShell.OnOffState]$vm.LockOnDisconnect
 $allowUnverifiedPaths = $true #Not a property set on the vm object, skips validation when changing path
 
-$vmObject = Get-VM -Name "$($vm.Name)*" | ?{$_.Name -eq $vm.Name}
+# $vmObject = Get-VM -Name "$($vm.Name)*" | ?{$_.Name -eq $vm.Name}
+$vmObject = Get-ClusterGroup | ? {$_.GroupType -eq 'VirtualMachine' -and $_.Name -eq $vm.Name } | Get-VM
 
 if ($vmObject){
 	throw "VM already exists - $($vm.Name)"
@@ -66,6 +68,7 @@ if ($vm.Path) {
 }
 
 New-Vm @NewVmArgs
+Get-Vm -Name $vm.Name | Add-ClusterVirtualMachineRole
 
 #Delete any auto-generated network adapter
 Get-VMNetworkAdapter -VmName $vm.Name | Remove-VMNetworkAdapter
@@ -181,7 +184,8 @@ type getVmArgs struct {
 
 var getVmTemplate = template.Must(template.New("GetVm").Parse(`
 $ErrorActionPreference = 'Stop'
-$vmObject = Get-VM -Name '{{.Name}}*' -ErrorAction SilentlyContinue | ?{$_.Name -eq '{{.Name}}' } | %{ @{
+# $vmObject = Get-VM -Name '{{.Name}}*' -ErrorAction SilentlyContinue | ?{$_.Name -eq '{{.Name}}' } | %{ @{
+$vmObject = Get-ClusterGroup | ? {$_.GroupType -eq 'VirtualMachine' -and $_.Name -eq '{{.Name}}' } | Get-VM -ErrorAction SilentlyContinue | ?{$_.Name -eq '{{.Name}}' } | %{ @{
 	Name=$_.Name;
 	Path=$_.Path;
 	Generation=$_.Generation;
@@ -236,7 +240,8 @@ $automaticStopAction = [Microsoft.HyperV.PowerShell.StopAction]$vm.AutomaticStop
 $checkpointType = [Microsoft.HyperV.PowerShell.CheckpointType]$vm.CheckpointType
 $lockOnDisconnect = [Microsoft.HyperV.PowerShell.OnOffState]$vm.LockOnDisconnect
 $allowUnverifiedPaths = $true #Not a property set on the vm object, skips validation when changing path
-$vmObject = Get-VM -Name "$($vm.Name)*" | ?{$_.Name -eq $vm.Name}
+# $vmObject = Get-VM -Name "$($vm.Name)*" | ?{$_.Name -eq $vm.Name}
+$vmObject = Get-ClusterGroup | ? {$_.GroupType -eq 'VirtualMachine' -and $_.Name -eq $vm.Name } | Get-VM | ?{$_.Name -eq $vm.Name}
 
 if (!$vmObject){
 	throw "VM does not exist - $($vm.Name)"
@@ -244,12 +249,14 @@ if (!$vmObject){
 
 #Set static and dynamic properties can't be set at the same time, but we need the values to match terraforms state
 $SetVmArgs = @{}
+$SetVmArgs.ComputerName=$vmObject.ComputerName
 $SetVmArgs.Name=$vm.Name
 $SetVmArgs.StaticMemory=$true
 $SetVmArgs.MemoryStartupBytes=$vm.MemoryStartupBytes
 Set-Vm @SetVmArgs
 
 $SetVmArgs = @{}
+$SetVmArgs.ComputerName=$vmObject.ComputerName
 $SetVmArgs.Name=$vm.Name
 $SetVmArgs.DynamicMemory=$true
 $SetVmArgs.MemoryMinimumBytes=$vm.MemoryMinimumBytes
@@ -257,6 +264,7 @@ $SetVmArgs.MemoryMaximumBytes=$vm.MemoryMaximumBytes
 Set-Vm @SetVmArgs
 
 $SetVmArgs = @{}
+$SetVmArgs.ComputerName=$vmObject.ComputerName
 $SetVmArgs.Name=$vm.Name
 $SetVmArgs.GuestControlledCacheTypes=$vm.GuestControlledCacheTypes
 $SetVmArgs.LowMemoryMappedIoSpace=$vm.LowMemoryMappedIoSpace
@@ -347,7 +355,9 @@ type deleteVmArgs struct {
 
 var deleteVmTemplate = template.Must(template.New("DeleteVm").Parse(`
 $ErrorActionPreference = 'Stop'
-Get-VM -Name '{{.Name}}*' | ?{$_.Name -eq '{{.Name}}'} | Remove-VM -force
+# Get-VM -Name '{{.Name}}*' | ?{$_.Name -eq '{{.Name}}'} | Remove-VM -force
+Get-ClusterGroup | ? {$_.GroupType -eq 'VirtualMachine' -and $_.Name -eq '{{.Name}}' } | Get-VM | ?{$_.Name -eq '{{.Name}}'} | Remove-VM -force
+Get-ClusterGroup | ? {$_.GroupType -eq 'VirtualMachine' -and $_.Name -eq '{{.Name}}' } | Remove-ClusterGroup -RemoveResources -Force
 `))
 
 func (c *ClientConfig) DeleteVm(ctx context.Context, name string) (err error) {

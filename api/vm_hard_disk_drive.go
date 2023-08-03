@@ -130,7 +130,7 @@ func DiffSuppressVmHardDiskPath(key, old, new string, d *schema.ResourceData) bo
 		return true
 	}
 
-	if new == old {
+	if strings.EqualFold(new, old) {
 		return true
 	}
 

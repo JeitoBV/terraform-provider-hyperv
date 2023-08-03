@@ -87,7 +87,7 @@ type getVmHardDiskDrivesArgs struct {
 
 var getVmHardDiskDrivesTemplate = template.Must(template.New("GetVmHardDiskDrives").Parse(`
 $ErrorActionPreference = 'Stop'
-$vmHardDiskDrivesObject = @(Get-VM -Name '{{.VmName}}*' | ?{$_.Name -eq '{{.VmName}}' } | Get-VMHardDiskDrive | %{ @{
+$vmHardDiskDrivesObject = @(Get-ClusterGroup | ? {$_.GroupType -eq 'VirtualMachine' -and $_.Name -eq '{{.VmName}}' } | Get-VM | Get-VMHardDiskDrive | %{ @{
 	ControllerType=$_.ControllerType;
 	ControllerNumber=$_.ControllerNumber;
 	ControllerLocation=$_.ControllerLocation;
@@ -131,7 +131,7 @@ $ErrorActionPreference = 'Stop'
 Import-Module Hyper-V
 $vmHardDiskDrive = '{{.VmHardDiskDriveJson}}' | ConvertFrom-Json
 
-$vmHardDiskDrivesObject = @(Get-VM -Name '{{.VmName}}*' | ?{$_.Name -eq '{{.VmName}}' } | Get-VMHardDiskDrive -ControllerLocation {{.ControllerLocation}} -ControllerNumber {{.ControllerNumber}} )
+$vmHardDiskDrivesObject = @(Get-ClusterGroup | ? {$_.GroupType -eq 'VirtualMachine' -and $_.Name -eq '{{.VmName}}' } | Get-VM | Get-VMHardDiskDrive -ControllerLocation {{.ControllerLocation}} -ControllerNumber {{.ControllerNumber}} )
 
 if (!$vmHardDiskDrivesObject){
 	throw "VM hard disk drive does not exist - {{.ControllerLocation}} {{.ControllerNumber}}"
@@ -221,7 +221,7 @@ type deleteVmHardDiskDriveArgs struct {
 var deleteVmHardDiskDriveTemplate = template.Must(template.New("DeleteVmHardDiskDrive").Parse(`
 $ErrorActionPreference = 'Stop'
 
-@(Get-VMHardDiskDrive -VmName '{{.VmName}}' -ControllerNumber {{.ControllerNumber}} -ControllerLocation {{.ControllerLocation}}) | Remove-VMHardDiskDrive
+@(Get-ClusterGroup | ? {$_.GroupType -eq 'VirtualMachine' -and $_.Name -eq '{{.VmName}}' } | Get-VM | Get-VMHardDiskDrive -ControllerNumber {{.ControllerNumber}} -ControllerLocation {{.ControllerLocation}}) | Remove-VMHardDiskDrive
 `))
 
 func (c *ClientConfig) DeleteVmHardDiskDrive(ctx context.Context, vmname string, controllerNumber int32, controllerLocation int32) (err error) {

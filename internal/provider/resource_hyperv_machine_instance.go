@@ -17,10 +17,10 @@ import (
 
 const (
 	MaxUint32                    = 4294967295
-	ReadMachineInstanceTimeout   = 2 * time.Minute
+	ReadMachineInstanceTimeout   = 10 * time.Minute
 	CreateMachineInstanceTimeout = 30 * time.Minute
 	UpdateMachineInstanceTimeout = 30 * time.Minute
-	DeleteMachineInstanceTimeout = 5 * time.Minute
+	DeleteMachineInstanceTimeout = 10 * time.Minute
 )
 
 func resourceHyperVMachineInstance() *schema.Resource {
@@ -384,7 +384,7 @@ func resourceHyperVMachineInstance() *schema.Resource {
 							Type:        schema.TypeBool,
 							Optional:    true,
 							Default:     false,
-							ForceNew:    true,
+							ForceNew:    false,
 							Description: "Specifies whether the virtual network adapter is the legacy type.",
 						},
 						"dynamic_mac_address": {
@@ -1280,11 +1280,12 @@ func resourceHyperVMachineInstanceUpdate(ctx context.Context, d *schema.Resource
 
 	generation := (d.Get("generation")).(int)
 
-	hasChangesThatRequireVmToBeOff := d.HasChange("automatic_critical_error_action") ||
+	hasChangesThatRequireVmToBeOff := d.HasChange("processor_count") ||
+    //d.HasChange("automatic_critical_error_action") ||
 		d.HasChange("automatic_critical_error_action_timeout") ||
-		d.HasChange("automatic_start_action") ||
-		d.HasChange("automatic_start_delay") ||
-		d.HasChange("automatic_stop_action") ||
+		//d.HasChange("automatic_start_action") ||
+		//d.HasChange("automatic_start_delay") ||
+		//d.HasChange("automatic_stop_action") ||
 		d.HasChange("checkpoint_type") ||
 		d.HasChange("dynamic_memory") ||
 		d.HasChange("guest_controlled_cache_types") ||
@@ -1294,17 +1295,16 @@ func resourceHyperVMachineInstanceUpdate(ctx context.Context, d *schema.Resource
 		d.HasChange("memory_maximum_bytes") ||
 		d.HasChange("memory_minimum_bytes") ||
 		d.HasChange("memory_startup_bytes") ||
-		d.HasChange("notes") ||
-		d.HasChange("processor_count") ||
+		//d.HasChange("notes") ||
 		d.HasChange("smart_paging_file_path") ||
 		d.HasChange("snapshot_file_location") ||
 		d.HasChange("static_memory") ||
 		(generation > 1 && d.HasChange("vm_firmware")) ||
 		d.HasChange("vm_processor") ||
-		d.HasChange("integration_services") ||
-		d.HasChange("network_adaptors") ||
-		d.HasChange("dvd_drives") ||
-		d.HasChange("hard_disk_drives")
+		//d.HasChange("network_adaptors") ||
+		//d.HasChange("dvd_drives") ||
+		//d.HasChange("hard_disk_drives") ||
+		d.HasChange("integration_services")
 
 	if hasChangesThatRequireVmToBeOff {
 		err := turnOffVmIfOn(ctx, d, client, name)

@@ -16,7 +16,7 @@ var getVmStatusTemplate = template.Must(template.New("GetVmStatus").Parse(`
 $ErrorActionPreference = 'Stop'
 $vmName = '{{.VmName}}'
 
-$vmStateObject = Get-VM -Name "$($vmName)*" | ?{$_.Name -eq $vmName } | %{ @{
+$vmStateObject = Get-ClusterGroup | ? {$_.GroupType -eq 'VirtualMachine' -and $_.Name -eq $vmName } | Get-VM | %{ @{
 	State=$_.State;
 }}
 
@@ -94,7 +94,7 @@ function Test-IsNotInFinalTransitionState($State){
 
 function Wait-IsInFinalTransitionState($Name, $Timeout, $PollPeriod){
 	$timer = [Diagnostics.Stopwatch]::StartNew()
-	while (($timer.Elapsed.TotalSeconds -lt $Timeout) -and (Test-IsNotInFinalTransitionState (Get-VM -name $Name).state)) { 
+	while (($timer.Elapsed.TotalSeconds -lt $Timeout) -and (Test-IsNotInFinalTransitionState (Get-ClusterGroup | ? {$_.GroupType -eq 'VirtualMachine' -and $_.Name -eq $Name } | Get-VM).state)) { 
 		Start-Sleep -Seconds $PollPeriod
 	}
 	$timer.Stop()
@@ -108,7 +108,8 @@ Import-Module Hyper-V
 $vm = '{{.VmStatusJson}}' | ConvertFrom-Json
 $vmName = '{{.VmName}}'
 $state = [Microsoft.HyperV.PowerShell.VMState]$vm.State
-$vmObject = Get-VM -Name "$($vmName)*" | ?{$_.Name -eq $vmName}
+# $vmObject = Get-VM -Name "$($vmName)*" | ?{$_.Name -eq $vmName}
+$vmObject = Get-ClusterGroup | ? {$_.GroupType -eq 'VirtualMachine' -and $_.Name -eq $vmName } | Get-VM
 $timeout = {{.Timeout}}
 $pollPeriod = {{.PollPeriod}}
 
@@ -123,16 +124,17 @@ if ($vmObject.State -ne $state) {
 
     Wait-IsInFinalTransitionState -Name $vmName -Timeout $timeout -PollPeriod $pollPeriod
 
-    $vmObject = Get-VM -Name "$($vmName)*" | ?{$_.Name -eq $vmName}
+    # $vmObject = Get-VM -Name "$($vmName)*" | ?{$_.Name -eq $vmName}
+    $vmObject = Get-ClusterGroup | ? {$_.GroupType -eq 'VirtualMachine' -and $_.Name -eq $vmName } | Get-VM
 
     if ($vmObject.State -eq $state) {
     } elseif ($state -eq [Microsoft.HyperV.PowerShell.VMState]::Running) {
         if ($vmObject.State -eq [Microsoft.HyperV.PowerShell.VMState]::Off) { 
-            Start-VM -Name $vmName
+            $vmObject | Start-VM
             Start-Sleep -Seconds $pollPeriod
             Wait-IsInFinalTransitionState -Name $vmName -Timeout $timeout -PollPeriod $pollPeriod
         } elseif ($vmObject.State -eq [Microsoft.HyperV.PowerShell.VMState]::Off) { 
-            Resume-VM -Name $vmName
+            $vmObject | Resume-VM
             Start-Sleep -Seconds $pollPeriod
             Wait-IsInFinalTransitionState -Name $vmName -Timeout $timeout -PollPeriod $pollPeriod
         } else {
@@ -140,7 +142,7 @@ if ($vmObject.State -ne $state) {
         }
     } elseif ($state -eq [Microsoft.HyperV.PowerShell.VMState]::Off) { 
         if ($vmObject.State -eq [Microsoft.HyperV.PowerShell.VMState]::Running -or $vmObject.State -eq [Microsoft.HyperV.PowerShell.VMState]::Paused) { 
-            Stop-VM -Name $vmName -force
+            $vmObject | Stop-VM -force
             Start-Sleep -Seconds $pollPeriod
             Wait-IsInFinalTransitionState -Name $vmName -Timeout $timeout -PollPeriod $pollPeriod
         } else {
@@ -148,7 +150,7 @@ if ($vmObject.State -ne $state) {
         }
     } elseif ($state -eq [Microsoft.HyperV.PowerShell.VMState]::Paused) {
         if ($vmObject.State -eq [Microsoft.HyperV.PowerShell.VMState]::Running) { 
-            Suspend-VM -Name $vmName
+            $vmObject | Suspend-VM
             Start-Sleep -Seconds $pollPeriod
             Wait-IsInFinalTransitionState -Name $vmName -Timeout $timeout -PollPeriod $pollPeriod
         } else {

@@ -64,7 +64,7 @@ type getVmDvdDrivesArgs struct {
 
 var getVmDvdDrivesTemplate = template.Must(template.New("GetVmDvdDrives").Parse(`
 $ErrorActionPreference = 'Stop'
-$vmDvdDrivesObject = @(Get-VM -Name '{{.VmName}}*' | ?{$_.Name -eq '{{.VmName}}' } | Get-VMDvdDrive | %{ @{
+$vmDvdDrivesObject = @(Get-ClusterGroup | ? {$_.GroupType -eq 'VirtualMachine' -and $_.Name -eq '{{.VmName}}' } | Get-VM | Get-VMDvdDrive | %{ @{
 	ControllerNumber=$_.ControllerNumber;
 	ControllerLocation=$_.ControllerLocation;
 	Path=$_.Path;
@@ -103,7 +103,7 @@ $ErrorActionPreference = 'Stop'
 Import-Module Hyper-V
 $vmDvdDrive = '{{.VmDvdDriveJson}}' | ConvertFrom-Json
 
-$vmDvdDrivesObject = @(Get-VM -Name '{{.VmName}}*' | ?{$_.Name -eq '{{.VmName}}' } | Get-VMDvdDrive -ControllerLocation {{.ControllerLocation}} -ControllerNumber {{.ControllerNumber}} )
+$vmDvdDrivesObject = @(Get-ClusterGroup | ? {$_.GroupType -eq 'VirtualMachine' -and $_.Name -eq '{{.VmName}}' } | Get-VM | Get-VMDvdDrive -ControllerLocation {{.ControllerLocation}} -ControllerNumber {{.ControllerNumber}} )
 
 if (!$vmDvdDrivesObject){
 	throw "VM dvd drive does not exist - {{.ControllerLocation}} {{.ControllerNumber}}"
@@ -174,7 +174,7 @@ type deleteVmDvdDriveArgs struct {
 var deleteVmDvdDriveTemplate = template.Must(template.New("DeleteVmDvdDrive").Parse(`
 $ErrorActionPreference = 'Stop'
 
-@(Get-VM -Name '{{.VmName}}*' | ?{$_.Name -eq '{{.VmName}}' } | Get-VMDvdDrive -ControllerNumber {{.ControllerNumber}} -ControllerLocation {{.ControllerLocation}}) | Remove-VMDvdDrive
+@(Get-ClusterGroup | ? {$_.GroupType -eq 'VirtualMachine' -and $_.Name -eq '{{.VmName}}' } | Get-VM | Get-VMDvdDrive -ControllerNumber {{.ControllerNumber}} -ControllerLocation {{.ControllerLocation}}) | Remove-VMDvdDrive
 `))
 
 func (c *ClientConfig) DeleteVmDvdDrive(ctx context.Context, vmName string, controllerNumber int, controllerLocation int) (err error) {
