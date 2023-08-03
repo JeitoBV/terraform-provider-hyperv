@@ -36,6 +36,18 @@ type elevatedCommandTemplateOptions struct {
 	ScriptPath             string
 }
 
+var elevatedCommandTemplate2 = template.Must(template.New("ElevatedCommand").Funcs(template.FuncMap{
+	"escapeSingleQuotes": func(textToEscape string) string {
+		return strings.Replace(textToEscape, `'`, `''`, -1)
+	},
+}).Parse(`
+  $username = '{{escapeSingleQuotes .User}}'.Replace('\.\\', $env:computername+'\');
+  $password = '{{escapeSingleQuotes .Password}}';
+  $credential = New-Object System.Management.Automation.PsCredential($username, (ConvertTo-SecureString $password -AsPlainText -Force))
+  powershell -NoProfile -Credential $credential -NoNewWindow -ExecutionPolicy Bypass "{{escapeDoubleQuotes .Powershell}}"
+  # powershell -NoProfile -ExecutionPolicy Bypass "{{escapeDoubleQuotes .Powershell}}"
+`))
+
 var elevatedCommandTemplate = template.Must(template.New("ElevatedCommand").Funcs(template.FuncMap{
 	"escapeSingleQuotes": func(textToEscape string) string {
 		return strings.Replace(textToEscape, `'`, `''`, -1)

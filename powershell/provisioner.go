@@ -439,7 +439,7 @@ func generateElevatedRunner(client *winrm.Client, elevatedUser string, elevatedP
 	fileName := fmt.Sprintf(`elevated-shell-%s.ps1`, name)
 
 	var elevatedCommandTemplateRendered bytes.Buffer
-	err = elevatedCommandTemplate.Execute(&elevatedCommandTemplateRendered, elevatedCommandTemplateOptions{
+	err = elevatedCommandTemplate2.Execute(&elevatedCommandTemplateRendered, elevatedCommandTemplateOptions{
 		User:                   elevatedUser,
 		Password:               elevatedPassword,
 		TaskDescription:        "Terraform elevated task",
