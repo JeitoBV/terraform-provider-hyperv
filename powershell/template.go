@@ -40,6 +40,13 @@ var elevatedCommandTemplate = template.Must(template.New("ElevatedCommand").Func
 	"escapeSingleQuotes": func(textToEscape string) string {
 		return strings.Replace(textToEscape, `'`, `''`, -1)
 	},
+	"escapeDoubleQuotes": func(textToEscape string) string {
+		textToEscape = strings.Replace(textToEscape, "\n", "", -1)
+		textToEscape = strings.Replace(textToEscape, "\r", "", -1)
+		textToEscape = strings.Replace(textToEscape, "\t", "", -1)
+		textToEscape = strings.Replace(textToEscape, `"`, `\"`, -1)
+		return textToEscape
+	},
 }).Parse(`
   $username = '{{escapeSingleQuotes .User}}'.Replace('\.\\', $env:computername+'\');
   $password = '{{escapeSingleQuotes .Password}}';
